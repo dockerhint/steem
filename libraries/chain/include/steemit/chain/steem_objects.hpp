@@ -247,6 +247,31 @@ namespace steemit { namespace chain {
          time_point_sec    effective_date;
    };
 
+   class reward_pool_object : public object< reward_pool_object_type, reward_pool_object >
+   {
+      public:
+         template< typename Constructor, typename Allocator >
+         reward_pool_object( Constructor&& c, allocator< Allocator > a )
+         {
+            c( *this );
+         }
+
+         reward_pool_object() {}
+
+         id_type             id;
+         asset               rewards_balance;
+
+         fc::uint128_t       recent_claims = 0;
+         fc::time_point_sec  recent_claims_update_time;
+
+         /**
+          * How much recent_claims decays per second, as a fraction of 2^32.
+          */
+         uint32_t            recent_claims_decay_per_second = 0;
+
+         asset execute_claim( const fc::uint128_t& claim, const fc::time_point_sec& when );
+   };
+
    struct by_price;
    struct by_expiration;
    struct by_account;
