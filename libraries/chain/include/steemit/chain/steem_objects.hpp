@@ -9,6 +9,10 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 
+#define BACKTEST_REWARD_POOL_ID (steemit::chain::reward_pool_id_type(0))
+#define POST_REWARD_POOL_ID     (steemit::chain::reward_pool_id_type(1))
+#define COMMENT_REWARD_POOL_ID  (steemit::chain::reward_pool_id_type(2))
+
 namespace steemit { namespace chain {
 
    using steemit::protocol::asset;
@@ -465,6 +469,15 @@ namespace steemit { namespace chain {
       >,
       allocator< decline_voting_rights_request_object >
    > decline_voting_rights_request_index;
+
+   typedef multi_index_container<
+      reward_pool_object,
+      indexed_by<
+         ordered_unique< tag< by_id >,
+            member< reward_pool_object, reward_pool_object::id_type, &reward_pool_object::id > >
+      >,
+      allocator< reward_pool_object >
+   > reward_pool_index;
 
 } } // steemit::chain
 

@@ -2205,6 +2205,11 @@ void database::process_funds()
           p.virtual_supply           += asset( new_steem, STEEM_SYMBOL );
       });
 
+      modify( get( BACKTEST_REWARD_POOL_ID ), [&]( reward_pool_object &pool )
+      {
+         pool.rewards_balance += asset( content_reward, STEEM_SYMBOL );
+      } );
+
       create_vesting( get_account( cwit.owner ), asset( witness_reward, STEEM_SYMBOL ) );
    }
    else
@@ -2227,6 +2232,11 @@ void database::process_funds()
           p.total_reward_fund_steem  += content_reward;
           p.current_supply += content_reward + witness_pay + vesting_reward;
           p.virtual_supply += content_reward + witness_pay + vesting_reward;
+      } );
+
+      modify( get( BACKTEST_REWARD_POOL_ID ), [&]( reward_pool_object &pool )
+      {
+         pool.rewards_balance += content_reward;
       } );
    }
 }
@@ -2612,6 +2622,7 @@ void database::initialize_indexes()
    add_core_index< escrow_index                            >(*this);
    add_core_index< savings_withdraw_index                  >(*this);
    add_core_index< decline_voting_rights_request_index     >(*this);
+   add_core_index< reward_pool_index                       >(*this);
 
    _plugin_index_signal();
 }
@@ -2783,6 +2794,25 @@ void database::init_genesis( uint64_t init_supply )
       create< witness_schedule_object >( [&]( witness_schedule_object& wso )
       {
          wso.current_shuffled_witnesses[0] = STEEMIT_INIT_MINER_NAME;
+      } );
+
+      // Create reward pools
+      create< reward_pool_object >( [&]( reward_pool_object& pool )
+      {
+         FC_ASSERT( pool.id == BACKTEST_REWARD_POOL_ID );
+         pool.rewards_balance = asset(0, STEEM_SYMBOL);
+      } );
+
+      create< reward_pool_object >( [&]( reward_pool_object& pool )
+      {
+         FC_ASSERT( pool.id == POST_REWARD_POOL_ID );
+         pool.rewards_balance = asset(0, STEEM_SYMBOL);
+      } );
+
+      create< reward_pool_object >( [&]( reward_pool_object& pool )
+      {
+         FC_ASSERT( pool.id == COMMENT_REWARD_POOL_ID );
+         pool.rewards_balance = asset(0, STEEM_SYMBOL);
       } );
    }
    FC_CAPTURE_AND_RETHROW()
