@@ -2112,6 +2112,16 @@ void database::cashout_comment_helper( util::comment_reward_context& ctx, const 
    } FC_CAPTURE_AND_RETHROW( (comment) )
 }
 
+
+      asset backtest_payout;
+      modify( get( BACKTEST_REWARD_POOL_ID ), [&]( reward_pool_object &pool )
+      {
+         backtest_payout = pool.execute_claim( calculate_vshares( ctx.rshares.value ) );
+      } );
+
+
+}
+
 void database::process_comment_cashout()
 {
    /// don't allow any content to get paid out until the website is ready to launch
@@ -2126,6 +2136,18 @@ void database::process_comment_cashout()
    int count = 0;
    const auto& cidx        = get_index<comment_index>().indices().get<by_cashout_time>();
    const auto& com_by_root = get_index< comment_index >().indices().get< by_root >();
+
+   std::set< comment_id_type > comment_ids;
+
+   for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time(); ++citr )
+   {
+      auto itr = com_by_root.lower_bound( current->root_comment );
+      while( itr != com_by_root.end() && itr->root_comment == current->root_comment )
+      {
+         comment_ids.push_back( itr->id );
+         ++itr;
+      }
+   }
 
    auto current = cidx.begin();
    while( current != cidx.end() && current->cashout_time <= head_block_time() )
