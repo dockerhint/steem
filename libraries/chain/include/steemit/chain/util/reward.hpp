@@ -21,8 +21,9 @@ using fc::uint128_t;
 struct comment_block_reward
 {
    // How much comes from the pool
-   asset     total_block_reward;
-   uint128_t total_block_claims;
+   asset      available_block_reward;  // total gotten from the pool in initial single tx
+   uint128_t  total_block_claims;      // total rshares2 getting reward from this pool
+   share_type total_block_reward;      // total paid out, may be smaller than available_block_reward due to rounding
 };
 
 struct comment_reward_context
@@ -44,6 +45,7 @@ struct comment_reward_context
 
    // used post-#774
    int64_t pool_id = 0;
+   share_type reward_from_pool;
 };
 
 struct comment_reward_result

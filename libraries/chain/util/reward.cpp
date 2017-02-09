@@ -43,7 +43,7 @@ uint64_t get_rshare_reward( const comment_reward_context& ctx )
    const comment_block_reward& pool = ctx.block_reward_for_pool[ ctx.pool_id ];
 
    u256 rs(ctx.rshares.value);
-   u256 rf(pool.total_block_reward.amount.value);
+   u256 rf(pool.available_block_reward.amount.value);
    u256 total_rshares2 = to256( pool.total_block_claims );
 
    u256 rs2 = to256( calculate_vshares( ctx.rshares.value ) );

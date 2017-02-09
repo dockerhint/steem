@@ -1971,7 +1971,7 @@ void fill_comment_reward_context_global_state_pre_hf17( util::comment_reward_con
    ctx.current_steem_price = db.get_feed_history().current_median_history;
 }
 
-void fill_comment_reward_context_global_state( util::comment_reward_context& ctx, const database& db )
+void fill_comment_reward_context_const_global_state( util::comment_reward_context& ctx, const database& db )
 {
    // Initialize claims
    const auto& pidx = get_index< reward_pool_object, by_id >();
@@ -1988,19 +1988,48 @@ void fill_comment_reward_context_global_state( util::comment_reward_context& ctx
    ctx.current_steem_price = db.get_feed_history().current_median_history;
 }
 
-void fill_comment_reward_context_steem( util::comment_reward_context& ctx, database& db )
+/**
+ * This method calls execute_claim() to move rewards from the reward_pool_object to
+ * the comment_reward_context object.
+ */
+
+void fill_comment_reward_context_cbr_pools( util::comment_reward_context& ctx, database& db )
 {
-   // Initialize claims
-   for( size_t i=0; i<STEMEIT_NUM_REWARD_POOLS; i++ )
+   for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
    {
       reward_pool_id_type pool_id = reward_pool_id_type(i);
       const reward_pool_object& pool = db.get< reward_pool_object, by_id >( pool_id );
       comment_block_reward& cbr = ctx.block_reward_for_pool[i];
       db.modify( pool, [&]( reward_pool_object& p )
       {
-         cbr.total_block_reward = p.execute_claim( cbr.total_block_claims );
+         cbr.available_block_reward = p.execute_claim( cbr.total_block_claims );
       } );
    }
+}
+
+void drain_comment_reward_context_cbr_pools( util::comment_reward_context& ctx, database& db )
+{
+   // Rewards may not add up due to satoshis
+   for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
+   {
+      comment_block_reward& cbr = ctx.block_reward_for_pool[i];
+      asset back_to_pool = cbr.available_block_reward - asset( cbr.total_block_reward, cbr.available_block_reward.symbol );
+      if( back_to_pool != 0 )
+         continue;
+
+      reward_pool_id_type pool_id = reward_pool_id_type(i);
+      const reward_pool_object& pool = db.get< reward_pool_object, by_id >( pool_id );
+      db.modify( pool, [&]( reward_pool_object& p )
+      {
+         p.rewards_balance += back_to_pool;
+      } );
+   }
+}
+
+void fill_comment_reward_context_global_state( util::comment_reward_context& ctx, database& db )
+{
+   fill_comment_reward_context_const_global_state( ctx, db );
+   fill_comment_reward_context_cbr_pools( ctx, db );
 }
 
 void fill_comment_reward_context_local_state( util::comment_reward_context& ctx, const comment_object& comment )
@@ -2009,6 +2038,8 @@ void fill_comment_reward_context_local_state( util::comment_reward_context& ctx,
    ctx.reward_weight = comment.reward_weight;
    ctx.max_sbd = comment.max_accepted_payout;
    ctx.pool_id = comment.get_reward_pool()._id;
+   ctx.reward_from_pool = util::get_rshare_reward( ctx );
+   ctx.total_block_reward += ctx.reward_from_pool;
 }
 
 void database::cashout_comment_helper( util::comment_reward_context& ctx, const comment_object& comment )
@@ -2027,7 +2058,7 @@ void database::cashout_comment_helper( util::comment_reward_context& ctx, const 
          if( !has_hardfork( STEEMIT_HARDFORK_0_17__774 ) )
             reward = util::get_rshare_reward_pre_hf17( ctx );
          else
-            reward = util::get_rshare_reward( ctx );
+            reward = ctx.reward_from_pool;
          uint128_t reward_tokens = uint128_t( reward.value );
 
          asset total_payout;
@@ -2165,20 +2196,11 @@ void database::process_comment_cashout()
 
    util::comment_reward_context ctx;
    fill_comment_reward_context_global_state( ctx, *this );
+   fill_comment_reward_context_cbr_pools( ctx, *this );
 
    int count = 0;
    const auto& cidx        = get_index<comment_index>().indices().get<by_cashout_time>();
    const auto& com_by_root = get_index< comment_index >().indices().get< by_root >();
-
-   for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time(); ++citr )
-   {
-      auto itr = com_by_root.lower_bound( current->root_comment );
-      while( itr != com_by_root.end() && itr->root_comment == current->root_comment )
-      {
-         comment_ids.push_back( itr->id );
-         ++itr;
-      }
-   }
 
    auto current = cidx.begin();
    while( current != cidx.end() && current->cashout_time <= head_block_time() )
@@ -2199,6 +2221,8 @@ void database::process_comment_cashout()
       }
       current = cidx.begin();
    }
+
+   drain_comment_reward_context_cbr_pools( ctx, *this );
 }
 
 /**
