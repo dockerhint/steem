@@ -96,7 +96,7 @@ BOOST_AUTO_TEST_CASE( account_create_apply )
       signed_transaction tx;
       private_key_type priv_key = generate_private_key( "alice" );
 
-      const account_object& init = db.get_account( STEEMIT_INIT_MINER_NAME );
+      db.get_account( STEEMIT_INIT_MINER_NAME );
       asset init_starting_balance = init.balance;
 
       const auto& gpo = db.get_dynamic_global_properties();
@@ -5964,6 +5964,215 @@ BOOST_AUTO_TEST_CASE( account_bandwidth )
    }
    FC_LOG_AND_RETHROW()
 }
+
+BOOST_AUTO_TEST_CASE( account_create_with_delegation_authorities )
+{
+   try
+   {
+      BOOST_TEST_MESSAGE( "Testing: account_create_with_delegation_authorities" );
+      ACTORS( (alice) )
+      vest( "alice", ASSET( "1000.000 TESTS" ) );
+
+      private_key_type priv_key = generate_private_key( "temp_key" );
+
+      account_create_with_delegation_operation op;
+      op.fee = op.fee = ASSET( "10.000 TESTS");
+      op.delegation = ASSET( "300.000 TESTS");
+      op.creator = "alice";
+      op.new_account_name = "bob";
+      op.owner = authority( 1, priv_key.get_public_key(), 1 );
+      op.active = authority( 2, priv_key.get_public_key(), 2 );
+      op.memo_key = priv_key.get_public_key();
+      op.json_metadata = "{\"foo\":\"bar\"}";
+
+      tx.set_expiration( db.head_block_time() + STEEMIT_MAX_TIME_UNTIL_EXPIRATION );
+      tx.operations.push_back( op );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when no signatures" );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_missing_active_auth );
+
+      BOOST_TEST_MESSAGE( "--- Test success with witness signature" );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      db.push_transaction( tx, 0 );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when duplicate signatures" );
+      tx.operations.clear();
+      tx.signatures.clear();
+      op.new_account_name = "sam";
+      tx.operations.push_back( op );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_duplicate_sig );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when signed by an additional signature not in the creator's authority" );
+      tx.signatures.clear();
+      tx.sign( init_account_priv_key, db.get_chain_id() );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_irrelevant_sig );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when signed by a signature not in the creator's authority" );
+      tx.signatures.clear();
+      tx.sign( init_account_priv_key, db.get_chain_id() );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_missing_active_auth );
+      validate_database();
+   }
+   FC_LOG_AND_RETHROW()
+}
+
+BOOST_AUTO_TEST_CASE( account_create_with_delegation_apply )
+{
+   try
+   {
+     BOOST_TEST_MESSAGE( "Testing: account_create_with_delegation_apply" );
+     ACTORS( (alice) )
+     vest( "alice", ASSET( "1000.000 TESTS" ) );
+
+     const account_object& alice = db.get_account( "alice" );
+     const auto& gpo = db.get_dynamic_global_properties();
+     auto shares = asset( gpo.total_vesting_shares.amount, VESTS_SYMBOL );
+     auto vests = asset( gpo.total_vesting_fund_steem.amount, STEEM_SYMBOL );
+
+     private_key_type priv_key = generate_private_key( "temp_key" );
+     account_create_with_delegation_operation op;
+     op.fee = op.fee = ASSET( "10.000 TESTS");
+     op.delegation = ASSET( "300.000 TESTS");
+     op.creator = "alice";
+     op.new_account_name = "bob";
+     op.owner = authority( 1, priv_key.get_public_key(), 1 );
+     op.active = authority( 2, priv_key.get_public_key(), 2 );
+     op.memo_key = priv_key.get_public_key();
+     op.json_metadata = "{\"foo\":\"bar\"}";
+     tx.set_expiration( db.head_block_time() + STEEMIT_MAX_TIME_UNTIL_EXPIRATION );
+     tx.operations.push_back( op );
+     tx.sign( alice_private_key, db.get_chain_id() );
+     db.push_transaction( tx, 0 );
+
+     generate_blocks( 1 );
+     auto delegated_vest = op.delegation * ( shares / vests );
+      const account_object& bob = db.get_account( "bob" );
+
+     BOOST_REQUIRE( alice.delegated_vesting_shares.amount.value == delegated_vest.amount.value );
+     BOOST_REQUIRE( bob.received_vesting_shares.amount.value == delegated_vest.amount.value );
+
+     auto delegation = _db.find< vesting_delegation_object, by_delegation >( boost::make_tuple( op.creator, op.new_account_name ) );
+
+     BOOST_REQUIRE( delegation != null);
+     BOOST_REQUIRE( delegation.delegator == op.creator);
+     BOOST_REQUIRE( delegation.vesting_shares.amount.value == ASSET( "300.000 TESTS" ).amount.value);
+
+     validate_database();
+   }
+   FC_LOG_AND_RETHROW()
+}
+BOOST_AUTO_TEST_CASE( delegate_vesting_shares_authorities )
+{
+   try
+   {
+      BOOST_TEST_MESSAGE( "Testing: delegate_vesting_shares_authorities" );
+      ACTORS( (alice)(bob) )
+      vest( "alice", ASSET( "1000.000 TESTS" ) );
+
+      /*
+      account_name_type delegator;
+      account_name_type delegatee;
+      asset             vesting_shares;
+      */
+      delegate_vesting_shares_operation op;
+      op.vesting_shares = ASSET( "300.000 TESTS");
+      op.delegator = "alice";
+      op.delegatee = "bob";
+
+      tx.set_expiration( db.head_block_time() + STEEMIT_MAX_TIME_UNTIL_EXPIRATION );
+      tx.operations.push_back( op );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when no signatures" );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_missing_active_auth );
+
+      BOOST_TEST_MESSAGE( "--- Test success with witness signature" );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      db.push_transaction( tx, 0 );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when duplicate signatures" );
+      tx.operations.clear();
+      tx.signatures.clear();
+      op.new_account_name = "sam";
+      tx.operations.push_back( op );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_duplicate_sig );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when signed by an additional signature not in the creator's authority" );
+      tx.signatures.clear();
+      tx.sign( init_account_priv_key, db.get_chain_id() );
+      tx.sign( alice_private_key, db.get_chain_id() );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_irrelevant_sig );
+
+      BOOST_TEST_MESSAGE( "--- Test failure when signed by a signature not in the creator's authority" );
+      tx.signatures.clear();
+      tx.sign( init_account_priv_key, db.get_chain_id() );
+      STEEMIT_REQUIRE_THROW( db.push_transaction( tx, 0 ), tx_missing_active_auth );
+      validate_database();
+   }
+   FC_LOG_AND_RETHROW()
+}
+BOOST_AUTO_TEST_CASE( delegate_vesting_shares_apply )
+{
+   try
+   {
+     BOOST_TEST_MESSAGE( "Testing: delegate_vesting_shares_apply" );
+     ACTORS( (alice)(bob) )
+     vest( "alice", ASSET( "1000.000 TESTS" ) );
+
+     delegate_vesting_shares_operation op;
+     op.vesting_shares = ASSET( "300.000 TESTS");
+     op.delegator = "alice";
+     op.delegatee = "bob";
+
+     tx.set_expiration( db.head_block_time() + STEEMIT_MAX_TIME_UNTIL_EXPIRATION );
+     tx.operations.push_back( op );
+
+     generate_blocks( 1 );
+     const account_object& alice = db.get_account( "alice" );
+     const account_object& bob = db.get_account( "bob" );
+
+     BOOST_REQUIRE( alice.delegated_vesting_shares.amount.value == ASSET( "300.000 TESTS" ).amount.value );
+     BOOST_REQUIRE( bob.received_vesting_shares.amount.value == ASSET( "300.000 TESTS" ).amount.value );
+
+     auto delegation = _db.find< vesting_delegation_object, by_delegation >( boost::make_tuple( op.delegator, op.delegatee ) );
+
+     BOOST_REQUIRE( delegation != null);
+     BOOST_REQUIRE( delegation.delegator == op.delegator);
+     BOOST_REQUIRE( delegation.vesting_shares.amount.value == ASSET( "300.000 TESTS" ).amount.value);
+
+     validate_database();
+     tx.operations.clear();
+     op.vesting_shares = ASSET( "400.000 TESTS");
+     tx.set_expiration( db.head_block_time() + STEEMIT_MAX_TIME_UNTIL_EXPIRATION );
+     tx.operations.push_back( op );
+     generate_blocks(1);
+
+     BOOST_REQUIRE( delegation != null);
+     BOOST_REQUIRE( delegation.delegator == op.delegator);
+     BOOST_REQUIRE( delegation.vesting_shares.amount.value == ASSET( "400.000 TESTS" ).amount.value);
+     BOOST_REQUIRE( alice.delegated_vesting_shares.amount.value == ASSET( "400.000 TESTS" ).amount.value);
+     BOOST_REQUIRE( bob.received_vesting_shares.amount.value == ASSET( "400.000 TESTS" ).amount.value);
+
+     tx.operations.clear();
+     op.vesting_shares = ASSET( "000.000 TESTS");
+     tx.set_expiration( db.head_block_time() + STEEMIT_MAX_TIME_UNTIL_EXPIRATION );
+     tx.operations.push_back( op );
+     generate_blocks(1);
+
+     BOOST_REQUIRE( delegation != null);
+     BOOST_REQUIRE( delegation.delegator == op.delegator);
+     BOOST_REQUIRE( delegation.vesting_shares.amount.value == ASSET( "000.000 TESTS" ).amount.value);
+     BOOST_REQUIRE( alice.delegated_vesting_shares.amount.value == ASSET( "000.000 TESTS" ).amount.value);
+     BOOST_REQUIRE( bob.received_vesting_shares.amount.value == ASSET( "000.000 TESTS" ).amount.value);
+
+   }
+   FC_LOG_AND_RETHROW()
+}
+
 
 BOOST_AUTO_TEST_SUITE_END()
 #endif
