@@ -1973,6 +1973,7 @@ void fill_comment_reward_context_global_state_pre_hf17( util::comment_reward_con
 
 void fill_comment_reward_context_global_state( util::comment_reward_context& ctx, const database& db )
 {
+   // Initialize claims
    const auto& pidx = get_index< reward_pool_object, by_id >();
 
    for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
@@ -1980,11 +1981,26 @@ void fill_comment_reward_context_global_state( util::comment_reward_context& ctx
 
    for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time(); ++citr )
    {
-      reward_pool_id_type rpid = citr->get_reward_pool();
-      ctx.block_reward_for_pool[rpid._id].total_block_claims += util::calculate_vshares( citr->rshares );
+      reward_pool_id_type pool_id = citr->get_reward_pool();
+      ctx.block_reward_for_pool[pool_id._id].total_block_claims += util::calculate_vshares( citr->rshares );
    }
 
    ctx.current_steem_price = db.get_feed_history().current_median_history;
+}
+
+void fill_comment_reward_context_steem( util::comment_reward_context& ctx, database& db )
+{
+   // Initialize claims
+   for( size_t i=0; i<STEMEIT_NUM_REWARD_POOLS; i++ )
+   {
+      reward_pool_id_type pool_id = reward_pool_id_type(i);
+      const reward_pool_object& pool = db.get< reward_pool_object, by_id >( pool_id );
+      comment_block_reward& cbr = ctx.block_reward_for_pool[i];
+      db.modify( pool, [&]( reward_pool_object& p )
+      {
+         cbr.total_block_reward = p.execute_claim( cbr.total_block_claims );
+      } );
+   }
 }
 
 void fill_comment_reward_context_local_state( util::comment_reward_context& ctx, const comment_object& comment )
