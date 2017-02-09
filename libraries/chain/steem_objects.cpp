@@ -13,7 +13,7 @@ asset reward_pool_object::execute_claim( const fc::uint128_t& claim, const fc::t
    if( recent_claims_update_time == fc::time_point_sec() )
    {
       asset reward = rewards_balance;
-      rewards_balance = 0;
+      rewards_balance = asset( 0, rewards_balance.symbol );
       recent_claims += claim;
       recent_claims_update_time = now;
       return reward;
