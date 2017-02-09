@@ -515,3 +515,7 @@ CHAINBASE_SET_INDEX_TYPE( steemit::chain::escrow_object, steemit::chain::escrow_
 FC_REFLECT( steemit::chain::decline_voting_rights_request_object,
              (id)(account)(effective_date) )
 CHAINBASE_SET_INDEX_TYPE( steemit::chain::decline_voting_rights_request_object, steemit::chain::decline_voting_rights_request_index )
+
+FC_REFLECT( steemit::chain::reward_pool_object,
+             (id)(rewards_balance)(recent_claims)(recent_claims_update_time)(recent_claims_decay_per_second) )
+CHAINBASE_SET_INDEX_TYPE( steemit::chain::reward_pool_object, steemit::chain::reward_pool_index )

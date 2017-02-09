@@ -1974,12 +1974,14 @@ void fill_comment_reward_context_global_state_pre_hf17( util::comment_reward_con
 void fill_comment_reward_context_const_global_state( util::comment_reward_context& ctx, const database& db )
 {
    // Initialize claims
-   const auto& pidx = get_index< reward_pool_object, by_id >();
+   const auto& pidx = db.get_index< reward_pool_object, by_id >();
 
    for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
       ctx.block_reward_for_pool[i].total_block_claims = 0;
 
-   for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time(); ++citr )
+   fc::time_point_sec head_block_time = db.head_block_time();
+
+   for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time; ++citr )
    {
       reward_pool_id_type pool_id = citr->get_reward_pool();
       ctx.block_reward_for_pool[pool_id._id].total_block_claims += util::calculate_vshares( citr->rshares );

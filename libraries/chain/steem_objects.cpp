@@ -1,5 +1,6 @@
 
 #include <steemit/chain/steem_objects.hpp>
+#include <steemit/chain/util/uint256.hpp>
 
 #include <fc/uint128.hpp>
 
@@ -27,7 +28,7 @@ asset reward_pool_object::execute_claim( const fc::uint128_t& claim, const fc::t
    uint64_t recent_claims_decay_pct = uint64_t( recent_claims_decay_per_second ) * uint64_t(dt);
 
    fc::uint128_t recent_claims_decay;
-   u256 recent_claims_u256 = to256( recent_claims )
+   u256 recent_claims_u256 = util::to256( recent_claims );
    u256 recent_claims_decay_u256 = (recent_claims_u256 * recent_claims_decay_pct) >> 32;
    if( recent_claims_decay_u256 <= recent_claims_u256 )
    {
@@ -51,9 +52,9 @@ asset reward_pool_object::execute_claim( const fc::uint128_t& claim, const fc::t
    recent_claims += claim;
    recent_claims_update_time = now;
 
-   u256 reward_amount_u256 = to_256( claim );
+   u256 reward_amount_u256 = util::to256( claim );
    reward_amount_u256 *= rewards_balance.amount.value;
-   reward_amount_u256 /= recent_claims;
+   reward_amount_u256 /= util::to256( recent_claims );
 
    // should always hold since it's rewards_balance * F where
    // F = claim / (recent_claims + claim) < 1
