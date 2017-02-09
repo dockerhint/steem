@@ -1963,11 +1963,27 @@ share_type database::pay_curators( const comment_object& c, share_type max_rewar
    } FC_CAPTURE_AND_RETHROW()
 }
 
-void fill_comment_reward_context_global_state( util::comment_reward_context& ctx, const database& db )
+void fill_comment_reward_context_global_state_pre_hf17( util::comment_reward_context& ctx, const database& db )
 {
    const dynamic_global_property_object& dgpo = db.get_dynamic_global_properties();
    ctx.total_reward_shares2 = dgpo.total_reward_shares2;
    ctx.total_reward_fund_steem = dgpo.total_reward_fund_steem;
+   ctx.current_steem_price = db.get_feed_history().current_median_history;
+}
+
+void fill_comment_reward_context_global_state( util::comment_reward_context& ctx, const database& db )
+{
+   const auto& pidx = get_index< reward_pool_object, by_id >();
+
+   for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
+      ctx.block_reward_for_pool[i].total_block_claims = 0;
+
+   for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time(); ++citr )
+   {
+      reward_pool_id_type rpid = citr->get_reward_pool();
+      ctx.block_reward_for_pool[rpid._id].total_block_claims += util::calculate_vshares( citr->rshares );
+   }
+
    ctx.current_steem_price = db.get_feed_history().current_median_history;
 }
 
@@ -1976,6 +1992,7 @@ void fill_comment_reward_context_local_state( util::comment_reward_context& ctx,
    ctx.rshares = comment.net_rshares;
    ctx.reward_weight = comment.reward_weight;
    ctx.max_sbd = comment.max_accepted_payout;
+   ctx.pool_id = comment.get_reward_pool()._id;
 }
 
 void database::cashout_comment_helper( util::comment_reward_context& ctx, const comment_object& comment )
@@ -1988,9 +2005,13 @@ void database::cashout_comment_helper( util::comment_reward_context& ctx, const 
       {
          fill_comment_reward_context_local_state( ctx, comment );
          if( !has_hardfork( STEEMIT_HARDFORK_0_17__771 ) )
-            fill_comment_reward_context_global_state( ctx, *this );
+            fill_comment_reward_context_global_state_pre_hf17( ctx, *this );
 
-         const share_type reward = util::get_rshare_reward( ctx );
+         share_type reward;
+         if( !has_hardfork( STEEMIT_HARDFORK_0_17__774 ) )
+            reward = util::get_rshare_reward_pre_hf17( ctx );
+         else
+            reward = util::get_rshare_reward( ctx );
          uint128_t reward_tokens = uint128_t( reward.value );
 
          asset total_payout;
@@ -2112,14 +2133,10 @@ void database::cashout_comment_helper( util::comment_reward_context& ctx, const 
    } FC_CAPTURE_AND_RETHROW( (comment) )
 }
 
-
-      asset backtest_payout;
-      modify( get( BACKTEST_REWARD_POOL_ID ), [&]( reward_pool_object &pool )
-      {
-         backtest_payout = pool.execute_claim( calculate_vshares( ctx.rshares.value ) );
-      } );
-
-
+void database::process_comment_cashout()
+{
+   if( !has_hardfork( STEEMIT_HARDFORK_0_17__774 ) )
+      process_comment_cashout_pre_hf17()
 }
 
 void database::process_comment_cashout()
@@ -2136,8 +2153,6 @@ void database::process_comment_cashout()
    int count = 0;
    const auto& cidx        = get_index<comment_index>().indices().get<by_cashout_time>();
    const auto& com_by_root = get_index< comment_index >().indices().get< by_root >();
-
-   std::set< comment_id_type > comment_ids;
 
    for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time(); ++citr )
    {
@@ -2821,12 +2836,6 @@ void database::init_genesis( uint64_t init_supply )
       // Create reward pools
       create< reward_pool_object >( [&]( reward_pool_object& pool )
       {
-         FC_ASSERT( pool.id == BACKTEST_REWARD_POOL_ID );
-         pool.rewards_balance = asset(0, STEEM_SYMBOL);
-      } );
-
-      create< reward_pool_object >( [&]( reward_pool_object& pool )
-      {
          FC_ASSERT( pool.id == POST_REWARD_POOL_ID );
          pool.rewards_balance = asset(0, STEEM_SYMBOL);
       } );
@@ -2836,6 +2845,8 @@ void database::init_genesis( uint64_t init_supply )
          FC_ASSERT( pool.id == COMMENT_REWARD_POOL_ID );
          pool.rewards_balance = asset(0, STEEM_SYMBOL);
       } );
+
+      FC_ASSERT( get_index< reward_pool_object, by_id >().size() == STEEMIT_NUM_REWARD_POOLS );
    }
    FC_CAPTURE_AND_RETHROW()
 }

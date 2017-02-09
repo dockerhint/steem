@@ -11,6 +11,9 @@
 #include <steemit/protocol/authority.hpp>
 
 
+#define STEEMIT_POST_REWARD_POOL_ID     (steemit::chain::reward_pool_id_type(0))
+#define STEEMIT_COMMENT_REWARD_POOL_ID  (steemit::chain::reward_pool_id_type(1))
+
 namespace steemit { namespace chain {
 
 namespace bip = chainbase::bip;

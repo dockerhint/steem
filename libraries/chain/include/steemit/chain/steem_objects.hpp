@@ -9,10 +9,6 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 
-#define BACKTEST_REWARD_POOL_ID (steemit::chain::reward_pool_id_type(0))
-#define POST_REWARD_POOL_ID     (steemit::chain::reward_pool_id_type(1))
-#define COMMENT_REWARD_POOL_ID  (steemit::chain::reward_pool_id_type(2))
-
 namespace steemit { namespace chain {
 
    using steemit::protocol::asset;

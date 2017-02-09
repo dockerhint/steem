@@ -18,16 +18,40 @@ using steemit::protocol::share_type;
 
 using fc::uint128_t;
 
+struct comment_block_reward
+{
+   // How much comes from the pool
+   asset     total_block_reward;
+   uint128_t total_block_claims;
+};
+
 struct comment_reward_context
 {
+   // local values
    share_type rshares;
    uint16_t   reward_weight = 0;
    asset      max_sbd;
+
+   // global values
+   // used pre-#774
    uint128_t  total_reward_shares2;
    asset      total_reward_fund_steem;
    price      current_steem_price;
+
+   // used in HF17 comment equalization
+   // used post-#774
+   fc::array< comment_block_reward, STEEMIT_NUM_REWARD_POOLS > block_reward_for_pool;
+
+   // used post-#774
+   int64_t pool_id = 0;
 };
 
+struct comment_reward_result
+{
+   share_type rshares;
+};
+
+uint64_t get_rshare_reward_pre_hf17( const comment_reward_context& ctx );
 uint64_t get_rshare_reward( const comment_reward_context& ctx );
 
 inline uint128_t get_content_constant_s()
