@@ -2001,7 +2001,7 @@ void fill_comment_reward_context_cbr_pools( util::comment_reward_context& ctx, d
    for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
    {
       reward_pool_id_type pool_id = reward_pool_id_type(i);
-      const reward_pool_object& pool = db.get< reward_pool_index, by_id >( pool_id );
+      const reward_pool_object& pool = db.get( pool_id );
       util::comment_block_reward& cbr = ctx.block_reward_for_pool[i];
       db.modify( pool, [&]( reward_pool_object& p )
       {
@@ -2017,11 +2017,11 @@ void drain_comment_reward_context_cbr_pools( util::comment_reward_context& ctx, 
    {
       util::comment_block_reward& cbr = ctx.block_reward_for_pool[i];
       asset back_to_pool = cbr.available_block_reward - asset( cbr.total_block_reward, cbr.available_block_reward.symbol );
-      if( back_to_pool != 0 )
+      if( back_to_pool.amount.value == 0 )
          continue;
 
       reward_pool_id_type pool_id = reward_pool_id_type(i);
-      const reward_pool_object& pool = db.get< reward_pool_object, by_id >( pool_id );
+      const reward_pool_object& pool = db.get( pool_id );
       db.modify( pool, [&]( reward_pool_object& p )
       {
          p.rewards_balance += back_to_pool;
