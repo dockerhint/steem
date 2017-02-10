@@ -2042,7 +2042,8 @@ void fill_comment_reward_context_local_state( util::comment_reward_context& ctx,
    ctx.max_sbd = comment.max_accepted_payout;
    ctx.pool_id = comment.get_reward_pool()._id;
    ctx.reward_from_pool = util::get_rshare_reward( ctx );
-   ctx.total_block_reward += ctx.reward_from_pool;
+   util::comment_block_reward& cbr = ctx.block_reward_for_pool[ ctx.pool_id ];
+   cbr.total_block_reward += ctx.reward_from_pool;
 }
 
 void database::cashout_comment_helper( util::comment_reward_context& ctx, const comment_object& comment )
@@ -2181,12 +2182,6 @@ void database::cashout_comment_helper( util::comment_reward_context& ctx, const 
          }
       }
    } FC_CAPTURE_AND_RETHROW( (comment) )
-}
-
-void database::process_comment_cashout()
-{
-   if( !has_hardfork( STEEMIT_HARDFORK_0_17__774 ) )
-      process_comment_cashout_pre_hf17()
 }
 
 void database::process_comment_cashout()
