@@ -114,6 +114,11 @@
 #define STEEMIT_CONTENT_REWARD_PERCENT          (75*STEEMIT_1_PERCENT) //75% of inflation, 7.125% inflation
 #define STEEMIT_VESTING_FUND_PERCENT            (15*STEEMIT_1_PERCENT) //15% of inflation, 1.425% inflation
 
+// Post-HF17 split of comments/rewards going to posts/comment
+// See https://github.com/steemit/steem/issues/774
+#define STEEMIT_CONTENT_POST_SPLIT              (90*STEEMIT_1_PERCENT)
+#define STEEMIT_CONTENT_COMMENT_SPLIT           (10*STEEMIT_1_PERCENT)
+
 #define STEEMIT_MINER_PAY_PERCENT               (STEEMIT_1_PERCENT) // 1%
 #define STEEMIT_MIN_RATION                      100000
 #define STEEMIT_MAX_RATION_DECAY_RATE           (1000000)

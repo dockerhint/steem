@@ -2280,10 +2280,24 @@ void database::process_funds()
           p.virtual_supply           += asset( new_steem, STEEM_SYMBOL );
       });
 
-      modify( get( BACKTEST_REWARD_POOL_ID ), [&]( reward_pool_object &pool )
+      static_assert( STEEMIT_CONTENT_POST_SPLIT + STEEMIT_CONTENT_COMMENT_SPLIT == STEEMIT_100_PERCENT,
+         "content split must add up to 100%" );
+
+      auto comment_reward = (content_reward * STEEMIT_CONTENT_COMMENT_SPLIT) / STEEMIT_100_PERCENT;
+      auto post_reward = content_reward - comment_reward;
+
+      if( has_hardfork( STEEMIT_HARDFORK_0_17__774 ) )
       {
-         pool.rewards_balance += asset( content_reward, STEEM_SYMBOL );
-      } );
+         modify( get( STEEMIT_POST_REWARD_POOL_ID ), [&]( reward_pool_object &pool )
+         {
+            pool.rewards_balance += asset( post_reward, STEEM_SYMBOL );
+         } );
+
+         modify( get( STEEMIT_COMMENT_REWARD_POOL_ID ), [&]( reward_pool_object& pool )
+         {
+            pool.rewards_balance += asset( comment_reward, STEEM_SYMBOL );
+         } );
+      }
 
       create_vesting( get_account( cwit.owner ), asset( witness_reward, STEEM_SYMBOL ) );
    }
@@ -2307,11 +2321,6 @@ void database::process_funds()
           p.total_reward_fund_steem  += content_reward;
           p.current_supply += content_reward + witness_pay + vesting_reward;
           p.virtual_supply += content_reward + witness_pay + vesting_reward;
-      } );
-
-      modify( get( BACKTEST_REWARD_POOL_ID ), [&]( reward_pool_object &pool )
-      {
-         pool.rewards_balance += content_reward;
       } );
    }
 }
