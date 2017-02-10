@@ -2883,17 +2883,18 @@ void database::init_genesis( uint64_t init_supply )
       // Create reward pools
       create< reward_pool_object >( [&]( reward_pool_object& pool )
       {
-         FC_ASSERT( pool.id == POST_REWARD_POOL_ID );
+         FC_ASSERT( pool.id == STEEMIT_POST_REWARD_POOL_ID );
          pool.rewards_balance = asset(0, STEEM_SYMBOL);
       } );
 
       create< reward_pool_object >( [&]( reward_pool_object& pool )
       {
-         FC_ASSERT( pool.id == COMMENT_REWARD_POOL_ID );
+         FC_ASSERT( pool.id == STEEMIT_COMMENT_REWARD_POOL_ID );
          pool.rewards_balance = asset(0, STEEM_SYMBOL);
       } );
 
-      FC_ASSERT( get_index< reward_pool_object, by_id >().size() == STEEMIT_NUM_REWARD_POOLS );
+      const auto& idx = get_index< reward_pool_index, by_id >();
+      FC_ASSERT( idx.size() == STEEMIT_NUM_REWARD_POOLS );
    }
    FC_CAPTURE_AND_RETHROW()
 }
