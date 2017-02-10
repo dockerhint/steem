@@ -1974,17 +1974,17 @@ void fill_comment_reward_context_global_state_pre_hf17( util::comment_reward_con
 void fill_comment_reward_context_const_global_state( util::comment_reward_context& ctx, const database& db )
 {
    // Initialize claims
-   const auto& pidx = db.get_index< reward_pool_object, by_id >();
+   const auto& cidx = db.get_index< comment_index, by_cashout_time >();
 
    for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
       ctx.block_reward_for_pool[i].total_block_claims = 0;
 
    fc::time_point_sec head_block_time = db.head_block_time();
-
    for( auto citr=cidx.begin(); citr != cidx.end() && citr->cashout_time <= head_block_time; ++citr )
    {
       reward_pool_id_type pool_id = citr->get_reward_pool();
-      ctx.block_reward_for_pool[pool_id._id].total_block_claims += util::calculate_vshares( citr->rshares );
+      fc::uint128_t clamped_net_rshares = (citr->net_rshares > 0) ? citr->net_rshares.value : 0;
+      ctx.block_reward_for_pool[pool_id._id].total_block_claims += util::calculate_vshares( clamped_net_rshares );
    }
 
    ctx.current_steem_price = db.get_feed_history().current_median_history;
@@ -1997,14 +1997,15 @@ void fill_comment_reward_context_const_global_state( util::comment_reward_contex
 
 void fill_comment_reward_context_cbr_pools( util::comment_reward_context& ctx, database& db )
 {
+   fc::time_point_sec now = db.head_block_time();
    for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
    {
       reward_pool_id_type pool_id = reward_pool_id_type(i);
-      const reward_pool_object& pool = db.get< reward_pool_object, by_id >( pool_id );
-      comment_block_reward& cbr = ctx.block_reward_for_pool[i];
+      const reward_pool_object& pool = db.get< reward_pool_index, by_id >( pool_id );
+      util::comment_block_reward& cbr = ctx.block_reward_for_pool[i];
       db.modify( pool, [&]( reward_pool_object& p )
       {
-         cbr.available_block_reward = p.execute_claim( cbr.total_block_claims );
+         cbr.available_block_reward = p.execute_claim( cbr.total_block_claims, now );
       } );
    }
 }
@@ -2014,7 +2015,7 @@ void drain_comment_reward_context_cbr_pools( util::comment_reward_context& ctx, 
    // Rewards may not add up due to satoshis
    for( size_t i=0; i<STEEMIT_NUM_REWARD_POOLS; i++ )
    {
-      comment_block_reward& cbr = ctx.block_reward_for_pool[i];
+      util::comment_block_reward& cbr = ctx.block_reward_for_pool[i];
       asset back_to_pool = cbr.available_block_reward - asset( cbr.total_block_reward, cbr.available_block_reward.symbol );
       if( back_to_pool != 0 )
          continue;

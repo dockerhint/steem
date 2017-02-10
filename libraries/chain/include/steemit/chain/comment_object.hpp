@@ -112,7 +112,7 @@ namespace steemit { namespace chain {
             c( *this );
          }
 
-         reward_pool_id_type get_reward_pool()
+         reward_pool_id_type get_reward_pool()const
          {  return (parent_author == STEEMIT_ROOT_POST_PARENT) ? STEEMIT_POST_REWARD_POOL_ID : STEEMIT_COMMENT_REWARD_POOL_ID; }
 
          id_type           id;
