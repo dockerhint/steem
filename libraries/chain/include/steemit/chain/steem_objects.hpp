@@ -470,7 +470,7 @@ namespace steemit { namespace chain {
       reward_pool_object,
       indexed_by<
          ordered_unique< tag< by_id >,
-            member< reward_pool_object, reward_pool_object::id_type, &reward_pool_object::id > >
+            member< reward_pool_object, reward_pool_id_type, &reward_pool_object::id > >
       >,
       allocator< reward_pool_object >
    > reward_pool_index;
